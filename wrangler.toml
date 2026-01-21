@@ -1,5 +1,10 @@
+# Project name
 name = "nextgen-backend"
+
+# Entry point for your worker
 main = "index.js"
+
+# Compatibility date (today's date)
 compatibility_date = "2026-01-21"
 
 # KV namespace binding
