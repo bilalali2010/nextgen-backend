@@ -1,54 +1,64 @@
-export default {
-  async fetch(request, env) {
-    try {
-      const url = new URL(request.url);
-      const isAdmin = url.searchParams.get("admin") === "1";
+addEventListener("fetch", (event) => {
+  event.respondWith(handleRequest(event.request));
+});
 
-      let body = await request.json().catch(() => ({}));
-      const userInput = body.user_input || "";
+async function handleRequest(request) {
+  const url = new URL(request.url);
 
-      // Read knowledge from KV
-      const kvContent = await env.NEXTGEN_KV.get("knowledge") || "";
+  // Admin check
+  const isAdmin = url.searchParams.get("admin") === "1";
 
-      // Prepare OpenRouter payload
-      const payload = {
-        model: "nvidia/nemotron-3-nano-30b-a3b:free",
-        messages: [
-          {
-            role: "system",
-            content: `You are NEXTGEN assistant. Use the knowledge if possible.`
-          },
-          {
-            role: "user",
-            content: kvContent + "\n\nUser: " + userInput
-          }
-        ],
-        max_output_tokens: 150,
-        temperature: 0.4
-      };
+  // Handle GET requests
+  if (request.method === "GET") {
+    if (isAdmin) {
+      return new Response(
+        JSON.stringify({ status: "Admin panel access granted" }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return new Response(
+      JSON.stringify({ status: "NEXTGEN backend running" }),
+      { headers: { "Content-Type": "application/json" } }
+    );
+  }
 
-      // Call OpenRouter API
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      const botReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
-
-      return new Response(JSON.stringify({ reply: botReply, admin: isAdmin }), {
-        headers: { "Content-Type": "application/json" }
-      });
-
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
+  // Handle POST request for chat
+  if (request.method === "POST") {
+    const { message } = await request.json();
+    if (!message) {
+      return new Response(JSON.stringify({ error: "Message missing" }), {
+        status: 400,
         headers: { "Content-Type": "application/json" },
-        status: 500
       });
     }
+
+    // Call OpenRouter API
+    const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        messages: [{ role: "user", content: message }],
+      }),
+    });
+
+    const openRouterData = await openRouterRes.json();
+    const reply = openRouterData.choices?.[0]?.message?.content || "No reply";
+
+    // Save chat to KV
+    const timestamp = new Date().toISOString();
+    await NEXTGEN_KV.put(timestamp, JSON.stringify({ message, reply }));
+
+    return new Response(JSON.stringify({ reply }), {
+      headers: { "Content-Type": "application/json" },
+    });
   }
-};
+
+  return new Response(JSON.stringify({ error: "Method not allowed" }), {
+    status: 405,
+    headers: { "Content-Type": "application/json" },
+  });
+}
