@@ -3,7 +3,7 @@ main = "index.js"
 compatibility_date = "2026-01-21"
 
 kv_namespaces = [
-  { binding = "NEXTGEN_KV", id = "7e0d23cf5c3e4c63ae840247f00324eb" }
+  { binding = "NEXTGEN_KV", id = "dc9df476bbde459f8e68a2f69861d169" }
 ]
 
 vars = { 
