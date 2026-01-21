@@ -1,0 +1,8 @@
+name = "nextgen-backend"
+main = "index.js"
+compatibility_date = "2026-01-21"
+
+# KV namespace binding
+kv_namespaces = [
+  { binding = "NEXTGEN_KV", id = "dc9df476bbde459f8e68a2f69861d169", preview_id = "dc9df476bbde459f8e68a2f69861d169" }
+]
