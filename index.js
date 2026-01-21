@@ -1,41 +1,74 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const params = url.searchParams;
 
-    // Health check endpoint
-    if (url.pathname === "/") {
-      return new Response("NextGEN Backend is live!", { status: 200 });
-    }
+    // Admin check
+    const isAdmin = params.get("admin") === "1";
 
-    // Store data in KV
-    if (url.pathname === "/store" && request.method === "POST") {
+    // Only POST for chat requests
+    if (request.method === "POST" && url.pathname === "/chat") {
+      const data = await request.json();
+      const userMessage = data.message || "Hello";
+
+      // Prepare previous context from KV
+      const chatHistoryKey = `chat_${data.user || "guest"}`;
+      let previousChat = await env.NEXTGEN_KV.get(chatHistoryKey);
+      previousChat = previousChat || "";
+
+      // Prepare payload for OpenRouter
+      const payload = {
+        model: "nvidia/nemotron-3-nano-30b-a3b:free",
+        messages: [
+          {
+            role: "system",
+            content: "You are NEXTGEN AI assistant. Answer concisely, friendly, and use previous context if possible."
+          },
+          {
+            role: "user",
+            content: previousChat + "\nUser: " + userMessage
+          }
+        ],
+        max_output_tokens: 150,
+        temperature: 0.4
+      };
+
       try {
-        const data = await request.json();
-        const key = data.key;
-        const value = data.value;
+        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
 
-        if (!key || !value) {
-          return new Response("Missing key or value", { status: 400 });
-        }
+        const result = await res.json();
+        let botReply = result.choices?.[0]?.message?.content || "Sorry, I don't know that.";
 
-        await env.NEXTGEN_KV.put(key, value);
-        return new Response("✅ Saved successfully", { status: 200 });
-      } catch (err) {
-        return new Response("Error storing data: " + err.message, { status: 500 });
+        // Save conversation to KV
+        const newChat = previousChat + `\nUser: ${userMessage}\nBot: ${botReply}`;
+        await env.NEXTGEN_KV.put(chatHistoryKey, newChat);
+
+        return new Response(JSON.stringify({ reply: botReply, admin: isAdmin }), {
+          headers: { "Content-Type": "application/json" }
+        });
+
+      } catch (e) {
+        console.error(e);
+        return new Response(JSON.stringify({ reply: "⚠️ Error calling AI API", admin: isAdmin }), {
+          headers: { "Content-Type": "application/json" }
+        });
       }
     }
 
-    // Retrieve data from KV
-    if (url.pathname === "/retrieve" && request.method === "GET") {
-      const key = url.searchParams.get("key");
-      if (!key) {
-        return new Response("Missing key", { status: 400 });
-      }
-
-      const value = await env.NEXTGEN_KV.get(key);
-      return new Response(value || "No value found", { status: 200 });
+    // GET endpoint for admin panel status
+    if (request.method === "GET") {
+      return new Response(JSON.stringify({ admin: isAdmin }), {
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
-    return new Response("Endpoint not found", { status: 404 });
+    return new Response("NEXTGEN Backend is running.", { status: 200 });
   }
 };
