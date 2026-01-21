@@ -1,8 +1,10 @@
 name = "nextgen-backend"
-type = "javascript"  # Use "javascript" or "webpack" if you plan to bundle
 account_id = "5383324e4a8a8852ba0ccf13c06da16d"
 workers_dev = true
 compatibility_date = "2026-01-21"
+
+# Entry point of the worker
+main = "index.js"
 
 # KV Namespace
 kv_namespaces = [
