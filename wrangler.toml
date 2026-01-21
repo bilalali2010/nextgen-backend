@@ -1,18 +1,11 @@
-# Project name
 name = "nextgen-backend"
-
-# Entry point for your worker
 main = "index.js"
-
-# Compatibility date (today's date)
 compatibility_date = "2026-01-21"
 
-# KV namespace binding
 kv_namespaces = [
   { binding = "NEXTGEN_KV", id = "7e0d23cf5c3e4c63ae840247f00324eb" }
 ]
 
-# Environment variables
 vars = { 
   OPENROUTER_API_KEY = "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"
 }
