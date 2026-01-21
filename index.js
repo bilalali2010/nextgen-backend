@@ -2,8 +2,6 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url);
-      
-      // Admin toggle: ?admin=1
       const isAdmin = url.searchParams.get("admin") === "1";
 
       let body = await request.json().catch(() => ({}));
@@ -29,7 +27,7 @@ export default {
         temperature: 0.4
       };
 
-      // Call OpenRouter
+      // Call OpenRouter API
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
