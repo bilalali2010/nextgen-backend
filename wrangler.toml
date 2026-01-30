@@ -1,16 +1,13 @@
+
 name = "nextgen-backend"
-account_id = "5383324e4a8a8852ba0ccf13c06da16d"
-workers_dev = true
-compatibility_date = "2026-01-27"
-
-# Entry point
 main = "index.js"
+compatibility_date = "2026-01-21"
+workers_dev = true
+account_id = "5383324e4a8a8852ba0ccf13c06da16d"
 
-# KV namespace
 kv_namespaces = [
-  { binding = "NEXTGEN_KV", id = "dc9df476bbde459f8e68a2f69861d169", preview_id = "dc9df476bbde459f8e68a2f69861d169" }
+  { binding = "NEXTGEN_KV", id = "dc9df476bbde459f8e68a2f69861d169" }
 ]
 
-# Environment variable
 [vars]
 OPENROUTER_API_KEY = "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"
