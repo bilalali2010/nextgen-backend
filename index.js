@@ -1,5 +1,5 @@
-const OPENROUTER_API_KEY = OPENROUTER_API_KEY; // Set in wrangler.toml
-const NEXTGEN_KV = NEXTGEN_KV; // KV binding
+const OPENROUTER_API_KEY = OPENROUTER_API_KEY; 
+const NEXTGEN_KV = NEXTGEN_KV; 
 
 addEventListener("fetch", event => {
   event.respondWith(handleRequest(event.request));
@@ -9,7 +9,6 @@ async function handleRequest(request) {
   const url = new URL(request.url);
   const isAdmin = url.searchParams.get("admin") === "1";
 
-  // GET status
   if (request.method === "GET") {
     if (isAdmin) {
       return new Response(JSON.stringify({ status: "Admin panel access granted" }), {
@@ -21,26 +20,35 @@ async function handleRequest(request) {
     });
   }
 
-  // POST chat
   if (request.method === "POST") {
-    const { message } = await request.json();
+    const { message, texts } = await request.json();
+
+    if (texts && Array.isArray(texts) && isAdmin) {
+      // Admin upload of text chunks
+      for (let t of texts) {
+        const chunks = chunkText(t, 500);
+        for (let i = 0; i < chunks.length; i++) {
+          await NEXTGEN_KV.put(`pdf-${Date.now()}-${i}`, JSON.stringify({ text: chunks[i] }));
+        }
+      }
+      return new Response(JSON.stringify({ status: "Text uploaded and chunked" }));
+    }
+
     if (!message) {
       return new Response(JSON.stringify({ error: "Message missing" }), { status: 400 });
     }
 
-    // Search PDF knowledge chunks from KV
+    // Search KV for context
     const keys = await NEXTGEN_KV.list();
     let context = [];
     for (let key of keys.keys) {
       const chunk = await NEXTGEN_KV.get(key.name, "json");
-      if (chunk && chunk.text.includes(message)) {
-        context.push(chunk.text);
-      }
+      if (chunk && chunk.text.includes(message)) context.push(chunk.text);
     }
 
-    const prompt = `Answer based on the following knowledge: ${context.join("\n\n")}\n\nUser: ${message}`;
+    const prompt = `Answer based on knowledge: ${context.join("\n\n")}\n\nUser: ${message}`;
 
-    // Call OpenRouter AI
+    // OpenRouter API
     const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -56,55 +64,15 @@ async function handleRequest(request) {
     const aiData = await aiRes.json();
     const reply = aiData.choices?.[0]?.message?.content || "No reply";
 
-    // Save chat
     const timestamp = new Date().toISOString();
     await NEXTGEN_KV.put(timestamp, JSON.stringify({ message, reply }));
 
     return new Response(JSON.stringify({ reply }), { headers: { "Content-Type": "application/json" } });
   }
 
-  // POST upload PDFs (admin only)
-  if (request.method === "POST" && isAdmin) {
-    const { pdfs } = await request.json(); // pdfs = array of URLs from GitHub
-    if (!pdfs || !Array.isArray(pdfs)) {
-      return new Response(JSON.stringify({ error: "PDFs missing" }), { status: 400 });
-    }
-
-    for (let pdfUrl of pdfs) {
-      try {
-        const pdfRes = await fetch(pdfUrl);
-        const pdfBuffer = await pdfRes.arrayBuffer();
-        const text = await pdfToText(pdfBuffer);
-        const chunks = chunkText(text, 500);
-        for (let i = 0; i < chunks.length; i++) {
-          await NEXTGEN_KV.put(`pdf-${Date.now()}-${i}`, JSON.stringify({ text: chunks[i] }));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    return new Response(JSON.stringify({ status: "PDFs processed & stored" }));
-  }
-
   return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405 });
 }
 
-// Convert PDF bytes to text
-async function pdfToText(buffer) {
-  const pdfjs = require("pdfjs-dist/legacy/build/pdf.js");
-  const loadingTask = pdfjs.getDocument({ data: buffer });
-  const pdf = await loadingTask.promise;
-  let text = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map(item => item.str).join(" ") + "\n";
-  }
-  return text;
-}
-
-// Split text into chunks
 function chunkText(text, size) {
   const chunks = [];
   for (let i = 0; i < text.length; i += size) {
