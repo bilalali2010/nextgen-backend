@@ -5,7 +5,5 @@
   "scripts": {
     "deploy": "wrangler deploy"
   },
-  "dependencies": {
-    "pdfjs-dist": "^3.14.305"
-  }
+  "dependencies": {}
 }
